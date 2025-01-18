@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter Thread Extractor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f8fa;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #1da1f2;
+            text-align: center;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #1da1f2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #1991db;
+        }
+        #result {
+            margin-top: 20px;
+        }
+        .tweet {
+            border: 1px solid #e1e8ed;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background-color: white;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .full-text {
+            white-space: pre-line;
+            border: 1px solid #e1e8ed;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 5px;
+            background-color: white;
+        }
+        .copy-button {
+            background-color: #28a745;
+        }
+        .copy-button:hover {
+            background-color: #218838;
+        }
+        .result-section {
+            margin-top: 30px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background-color: #f8f9fa;
+            cursor: pointer;
+            border: 1px solid #dee2e6;
+        }
+        .tab.active {
+            background-color: #1da1f2;
+            color: white;
+            border-color: #1da1f2;
+        }
+        .content {
+            display: none;
+        }
+        .content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Twitter Thread Extractor</h1>
+        <div class="input-group">
+            <input type="text" id="twitterUrl" placeholder="Paste Twitter thread URL here">
+            <button onclick="extractThread()">Extract Thread</button>
+        </div>
+        <div id="result">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('individual')">Individual Tweets</div>
+                <div class="tab" onclick="switchTab('full')">Full Text</div>
+            </div>
+            <div id="individualTweets" class="content active"></div>
+            <div id="fullText" class="content">
+                <button onclick="copyFullText()" class="copy-button">Copy Full Text</button>
+                <div id="fullTextContent" class="full-text"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab:${tab === 'individual' ? 'first-child' : 'last-child'}`).classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+            document.getElementById(tab === 'individual' ? 'individualTweets' : 'fullText').classList.add('active');
+        }
+
+        function copyFullText() {
+            const text = document.getElementById('fullTextContent').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const button = document.querySelector('.copy-button');
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = 'Copy Full Text';
+                }, 2000);
+            });
+        }
+
+        async function extractThread() {
+            const url = document.getElementById('twitterUrl').value;
+            const individualTweetsDiv = document.getElementById('individualTweets');
+            const fullTextDiv = document.getElementById('fullTextContent');
+            
+            console.log('Starting thread extraction for URL:', url);
+            
+            if (!url) {
+                console.warn('No URL provided');
+                individualTweetsDiv.innerHTML = '<div class="error">Please enter a Twitter URL</div>';
+                return;
+            }
+
+            try {
+                console.log('Sending request to backend...');
+                individualTweetsDiv.innerHTML = 'Extracting thread...';
+                fullTextDiv.innerHTML = '';
+                
+                const requestData = { url: url };
+                console.log('Request data:', requestData);
+                
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (data.error) {
+                    console.error('Error from backend:', data.error);
+                    individualTweetsDiv.innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+
+                const { individual_tweets, full_text } = data;
+
+                if (!individual_tweets || individual_tweets.length === 0) {
+                    console.warn('No tweets found in the response');
+                    individualTweetsDiv.innerHTML = '<div class="error">No tweets found in this thread</div>';
+                    return;
+                }
+
+                console.log(`Rendering ${individual_tweets.length} tweets`);
+                
+                // Render individual tweets
+                individualTweetsDiv.innerHTML = individual_tweets
+                    .map((tweet, index) => `<div class="tweet">
+                        <strong>Tweet ${index + 1}:</strong><br>${tweet}
+                    </div>`)
+                    .join('');
+
+                // Render full text
+                fullTextDiv.textContent = full_text;
+                
+                console.log('Rendering complete');
+            } catch (error) {
+                console.error('Error during extraction:', error);
+                individualTweetsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                fullTextDiv.textContent = '';
+            }
+        }
+    </script>
+</body>
+</html> 
