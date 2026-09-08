@@ -11,11 +11,17 @@ from datetime import datetime
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app)
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+if ALLOWED_ORIGINS:
+    CORS(app, origins=ALLOWED_ORIGINS)
 
 # Twitter API credentials
 TWITTER_BEARER_TOKEN = os.getenv('TWITTER_BEARER_TOKEN')
@@ -226,4 +232,4 @@ def extract():
 
 if __name__ == '__main__':
     logger.info("Starting Flask application...")
-    app.run(debug=True) 
+    app.run(debug=os.getenv('FLASK_DEBUG') == '1')
